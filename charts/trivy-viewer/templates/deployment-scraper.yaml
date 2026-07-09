@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-scraper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper
+spec:
+  # Always a single replica to keep exactly one SQLite writer.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "trivy-viewer.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: scraper
+  template:
+    metadata:
+      labels:
+        {{- include "trivy-viewer.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: scraper
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "trivy-viewer.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: scraper
+          image: {{ include "trivy-viewer.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--mode=scraper"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            - name: MODE
+              value: scraper
+            - name: HEALTH_PORT
+              value: {{ .Values.metricsPort | quote }}
+            - name: STORAGE_PATH
+              value: /data
+            - name: LOG_FORMAT
+              value: {{ .Values.log.format | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.log.level | quote }}
+            - name: CLUSTER_NAME
+              value: {{ .Values.scraper.clusterName | quote }}
+            - name: WATCH_LOCAL
+              value: {{ .Values.scraper.watchLocal | quote }}
+            {{- if .Values.scraper.namespaces }}
+            - name: NAMESPACES
+              value: {{ join "," .Values.scraper.namespaces | quote }}
+            {{- end }}
+            - name: HUB_SECRET_NAMESPACE
+              value: {{ .Values.hubSecretNamespace | default .Release.Namespace | quote }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metricsPort }}
+          livenessProbe:
+            httpGet: {path: /healthz, port: metrics}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: {path: /readyz, port: metrics}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.scraper.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "trivy-viewer.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.scraper.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scraper.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scraper.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

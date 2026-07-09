@@ -1,0 +1,59 @@
+{{- if .Values.rbac.create }}
+# Cluster-wide read-only access to Trivy CRDs on the Hub's own cluster
+# (used by the local watcher). No write, no wildcards.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-reader
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["aquasecurity.github.io"]
+    resources: ["vulnerabilityreports", "sbomreports"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-reader
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "trivy-viewer.fullname" . }}-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "trivy-viewer.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+# Namespaced access for cluster-registration Secret CRUD (blast radius limited
+# to the release namespace).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-secrets
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-secrets
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "trivy-viewer.fullname" . }}-secrets
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "trivy-viewer.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

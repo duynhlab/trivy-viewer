@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-server
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "trivy-viewer.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+    - name: metrics
+      port: {{ .Values.metricsPort }}
+      targetPort: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-scraper
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    {{- include "trivy-viewer.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: scraper
+  ports:
+    - name: metrics
+      port: {{ .Values.metricsPort }}
+      targetPort: metrics

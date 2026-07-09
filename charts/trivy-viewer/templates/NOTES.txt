@@ -1,0 +1,17 @@
+trivy-viewer installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Components:
+  - {{ include "trivy-viewer.fullname" . }}-server   (UI/API, --mode=server)
+  - {{ include "trivy-viewer.fullname" . }}-scraper  (watchers, --mode=scraper)
+
+Access the UI:
+{{- if .Values.ingress.enabled }}
+  http://{{ (index .Values.ingress.hosts 0).host }}/
+{{- else }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "trivy-viewer.fullname" . }}-server {{ .Values.service.port }}:{{ .Values.service.port }}
+  then open http://localhost:{{ .Values.service.port }}/
+{{- end }}
+
+Register an Edge cluster from the UI at /admin/clusters, or apply a cluster
+Secret labelled trivy-viewer.io/secret-type=cluster in namespace
+{{ .Values.hubSecretNamespace | default .Release.Namespace }}.

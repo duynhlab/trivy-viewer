@@ -1,6 +1,6 @@
 # Binaries (local builds — not published)
 /bin/
-trivy-viewer
+/trivy-viewer
 *.exe
 
 # Test / coverage

@@ -1,0 +1,92 @@
+# Default values for trivy-viewer.
+
+image:
+  repository: ghcr.io/duynhlab/trivy-viewer
+  tag: ""              # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace where cluster-registration Secrets live. Empty = release namespace
+# (injected via the Downward API).
+hubSecretNamespace: ""
+
+# Log settings applied to both components.
+log:
+  format: json         # json | pretty
+  level: info          # debug | info | warn | error
+
+# Shared SQLite database on a PVC. server reads, scraper writes.
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 2Gi
+  # For ReadWriteOnce, server and scraper must co-locate on one node. The chart
+  # sets pod affinity automatically when accessMode is ReadWriteOnce.
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  create: true
+
+# UI/API component.
+server:
+  replicaCount: 1
+  port: 3000
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Watcher component (always a single replica to keep one SQLite writer).
+scraper:
+  watchLocal: true
+  clusterName: local
+  namespaces: []       # empty = all namespaces
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {memory: 512Mi}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+service:
+  type: ClusterIP
+  port: 3000
+
+metricsPort: 8080
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  additionalLabels: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: trivy.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+podAnnotations: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
