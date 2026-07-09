@@ -1,0 +1,44 @@
+# Minimal Trivy Operator CRDs for E2E. The report body is schema-less
+# (x-kubernetes-preserve-unknown-fields) so sample fixtures apply without the
+# full upstream schema — enough to exercise the watch/normalize/store pipeline.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: vulnerabilityreports.aquasecurity.github.io
+spec:
+  group: aquasecurity.github.io
+  scope: Namespaced
+  names:
+    plural: vulnerabilityreports
+    singular: vulnerabilityreport
+    kind: VulnerabilityReport
+    shortNames: ["vuln", "vulns"]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: sbomreports.aquasecurity.github.io
+spec:
+  group: aquasecurity.github.io
+  scope: Namespaced
+  names:
+    plural: sbomreports
+    singular: sbomreport
+    kind: SbomReport
+    shortNames: ["sbom", "sboms"]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true

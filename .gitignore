@@ -1,0 +1,31 @@
+# Binaries (local builds — not published)
+/bin/
+trivy-viewer
+*.exe
+
+# Test / coverage
+*.out
+coverage.*
+!codecov.yml
+
+# Local data
+/tmp/
+*.db
+*.db-wal
+*.db-shm
+
+# Maintainer-only (not published)
+/docs/
+/e2e/
+/Makefile
+
+# Frontend build output (embedded at build time).
+# The placeholder internal/web/static/index.html is tracked so the package
+# compiles before a web build; built assets are ignored.
+/internal/web/static/assets/
+/web/node_modules/
+/web/dist/
+
+# Editor / OS
+.DS_Store
+*.swp

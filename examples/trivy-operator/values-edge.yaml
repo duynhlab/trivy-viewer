@@ -1,0 +1,23 @@
+# Helm values for Trivy Operator on edge clusters (Kind / local).
+# Chart: aqua/trivy-operator — https://artifacthub.io/packages/helm/trivy-operator/trivy-operator
+
+operator:
+  # Scan all namespaces (empty = cluster-wide).
+  targetNamespaces: []
+  vulnerabilityScannerEnabled: true
+  sbomGenerationEnabled: true
+  clusterSbomCacheEnabled: false
+  scanJobsConcurrentLimit: 2
+  scannerReportTTL: "24h"
+
+trivy:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+nodeCollector:
+  enabled: false

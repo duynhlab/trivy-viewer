@@ -1,0 +1,21 @@
+run:
+  timeout: 5m
+  build-tags:
+    - e2e
+
+linters:
+  enable:
+    - gofmt
+    - goimports
+    - govet
+    - ineffassign
+    - misspell
+    - unconvert
+    - unused
+    - staticcheck
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
