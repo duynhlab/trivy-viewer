@@ -123,9 +123,13 @@ func (s *Server) Router() http.Handler {
 		r.Delete("/hub/clusters/{name}", s.deleteRegisteredCluster)
 		r.Get("/hub/manifests", s.registrationManifests)
 
-		// Auth stubs (auth: none).
+		// Auth stubs (auth: none). Token create/delete needs real
+		// authentication, so it is deferred to v2 with OIDC; a clear 501
+		// beats the generic failure the UI shows on a bare 405.
 		r.Get("/auth/me", s.authMe)
 		r.Get("/auth/tokens", s.authTokens)
+		r.Post("/auth/tokens", notImplemented("api tokens"))
+		r.Delete("/auth/tokens/{id}", notImplemented("api tokens"))
 
 		// Deferred to v2.
 		r.Handle("/alerts", notImplemented("alerts"))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/duynhlab/trivy-viewer/internal/config"
@@ -85,6 +86,20 @@ func TestAuthStubs(t *testing.T) {
 	rec = do(t, srv, http.MethodGet, "/api/v1/auth/me")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("me status = %d, want 200", rec.Code)
+	}
+
+	// Token mutations are v2 (need real auth): a clear 501 with an error
+	// body, not a bare 405, so the UI can show why.
+	rec = do(t, srv, http.MethodPost, "/api/v1/auth/tokens")
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("create token status = %d, want 501", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "not available") {
+		t.Errorf("create token body should explain unavailability, got %s", rec.Body.String())
+	}
+	rec = do(t, srv, http.MethodDelete, "/api/v1/auth/tokens/1")
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("delete token status = %d, want 501", rec.Code)
 	}
 }
 
