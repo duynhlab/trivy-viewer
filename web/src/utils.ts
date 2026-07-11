@@ -57,3 +57,8 @@ export function downloadCsv(content: string, filename: string): void {
 export function downloadJson(data: unknown, filename: string): void {
   downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), filename)
 }
+
+/** Log a failed background fetch with a consistent prefix (visible in devtools). */
+export function logError(context: string): (err: unknown) => void {
+  return (err) => console.error(`[trivy-viewer] ${context}`, err)
+}

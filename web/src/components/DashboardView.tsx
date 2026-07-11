@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Filler, Legend, Tooltip } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import { getDashboardTrends, getStats, getClusters } from '../api'
+import { logError } from '../utils'
 import type { TrendResponse, Stats, ClusterInfo } from '../types'
 import { OnboardingBanner, ErrorBanner } from './StatusBanner'
 import styles from './DashboardView.module.css'
@@ -39,7 +40,7 @@ export default function DashboardView() {
 
   useEffect(() => {
     loadData()
-    getClusters().then((data) => setClusters(data.items || [])).catch(() => {})
+    getClusters().then((data) => setClusters(data.items || [])).catch(logError('load clusters'))
   }, [loadData])
 
   // Auto-refresh countdown
