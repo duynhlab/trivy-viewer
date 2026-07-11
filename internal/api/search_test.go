@@ -50,7 +50,7 @@ func sbomData(t *testing.T, comps ...map[string]string) string {
 	return string(b)
 }
 
-func seedReport(t *testing.T, repo *storage.Repository, rep model.Report) {
+func seedReport(t *testing.T, repo *storage.ReportStore, rep model.Report) {
 	t.Helper()
 	if err := repo.UpsertReport(context.Background(), rep); err != nil {
 		t.Fatalf("seed report %s/%s: %v", rep.Namespace, rep.Name, err)

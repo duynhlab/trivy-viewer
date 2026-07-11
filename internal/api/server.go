@@ -12,14 +12,36 @@ import (
 	"github.com/duynhlab/trivy-viewer/internal/config"
 	"github.com/duynhlab/trivy-viewer/internal/metrics"
 	"github.com/duynhlab/trivy-viewer/internal/model"
-	"github.com/duynhlab/trivy-viewer/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"k8s.io/client-go/kubernetes"
 )
 
+// ReportStore is the report surface the handlers consume. The interface is
+// defined here, on the consumer side, and satisfied implicitly by
+// *storage.ReportStore ("accept interfaces, return structs").
+type ReportStore interface {
+	ListReports(ctx context.Context, reportType string, f model.Filters) ([]model.Report, int64, error)
+	GetReport(ctx context.Context, cluster, namespace, name, reportType string) (model.Report, error)
+	UpdateNotes(ctx context.Context, cluster, reportType, namespace, name, notes string) error
+	ListClusters(ctx context.Context) ([]model.ClusterInfo, error)
+	ListNamespaces(ctx context.Context, cluster string) ([]string, error)
+	Stats(ctx context.Context) (model.Stats, error)
+	CountByType(ctx context.Context, reportType string) (int64, error)
+}
+
+// AuditLogStore is the audit-log surface consumed by the admin handlers and
+// the request-logging middleware. Satisfied by *storage.APILogStore.
+type AuditLogStore interface {
+	InsertAPILog(ctx context.Context, entry model.APILogEntry) error
+	ListAPILogs(ctx context.Context, f model.APILogFilters) ([]model.APILogEntry, int64, error)
+	APILogStats(ctx context.Context) (model.APILogStats, error)
+	CleanupAPILogs(ctx context.Context, retentionDays int, triggeredBy string) (int64, error)
+}
+
 // Server holds the dependencies for the HTTP handlers.
 type Server struct {
-	repo    *storage.Repository
+	reports ReportStore
+	audit   AuditLogStore
 	cfg     *config.Config
 	metrics *metrics.Metrics
 	dbPath  string
@@ -38,7 +60,8 @@ type Server struct {
 
 // Options configures a Server.
 type Options struct {
-	Repo         *storage.Repository
+	Reports      ReportStore
+	Audit        AuditLogStore
 	Config       *config.Config
 	Metrics      *metrics.Metrics
 	DBPath       string
@@ -50,7 +73,8 @@ type Options struct {
 // New builds a Server.
 func New(o Options) *Server {
 	return &Server{
-		repo:         o.Repo,
+		reports:      o.Reports,
+		audit:        o.Audit,
 		cfg:          o.Config,
 		metrics:      o.Metrics,
 		dbPath:       o.DBPath,
@@ -158,7 +182,7 @@ func (s *Server) metricsMiddleware(next http.Handler) http.Handler {
 			s.metrics.HTTPRequests.WithLabelValues(r.Method, strconv.Itoa(rec.status)).Inc()
 			s.metrics.HTTPRequestDuration.WithLabelValues(r.Method).Observe(time.Since(start).Seconds())
 		}
-		if audit && s.repo != nil {
+		if audit && s.audit != nil {
 			entry := model.APILogEntry{
 				Method:     r.Method,
 				Path:       r.URL.Path,
@@ -168,7 +192,7 @@ func (s *Server) metricsMiddleware(next http.Handler) http.Handler {
 				UserAgent:  r.UserAgent(),
 			}
 			// Best-effort; audit logging must not break requests.
-			_ = s.repo.InsertAPILog(context.Background(), entry)
+			_ = s.audit.InsertAPILog(context.Background(), entry)
 		}
 	})
 }

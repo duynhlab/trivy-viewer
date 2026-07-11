@@ -9,7 +9,7 @@ import (
 
 func TestAPILogsListFilterAndStats(t *testing.T) {
 	ctx := context.Background()
-	repo := newTestRepo(t)
+	repo := NewAPILogStore(newTestDB(t))
 
 	entries := []struct {
 		method string

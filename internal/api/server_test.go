@@ -13,7 +13,7 @@ import (
 	"github.com/duynhlab/trivy-viewer/internal/web"
 )
 
-func newTestServer(t *testing.T) (*Server, *storage.Repository) {
+func newTestServer(t *testing.T) (*Server, *storage.ReportStore) {
 	t.Helper()
 	ctx := context.Background()
 	db, err := storage.Open(ctx, t.TempDir())
@@ -21,9 +21,9 @@ func newTestServer(t *testing.T) (*Server, *storage.Repository) {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	repo := storage.NewRepository(db)
+	repo := storage.NewReportStore(db)
 	cfg := &config.Config{Mode: config.ModeServer, LogFormat: "json", LogLevel: "info", ServerPort: 3000, StoragePath: t.TempDir(), AuthMode: "none"}
-	srv := New(Options{Repo: repo, Config: cfg, DBPath: db.Path()})
+	srv := New(Options{Reports: repo, Audit: storage.NewAPILogStore(db), Config: cfg, DBPath: db.Path()})
 	return srv, repo
 }
 

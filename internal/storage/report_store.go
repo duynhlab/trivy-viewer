@@ -14,13 +14,13 @@ import (
 // ErrNotFound is returned when a report does not exist.
 var ErrNotFound = errors.New("report not found")
 
-// Repository provides typed access to the reports table.
-type Repository struct {
+// ReportStore provides typed access to the reports table and clusters_view.
+type ReportStore struct {
 	db *sql.DB
 }
 
-// NewRepository builds a repository over the given database.
-func NewRepository(db *DB) *Repository { return &Repository{db: db.sql} }
+// NewReportStore builds a report store over the given database.
+func NewReportStore(db *DB) *ReportStore { return &ReportStore{db: db.sql} }
 
 const upsertSQL = `
 INSERT INTO reports (
@@ -44,7 +44,7 @@ ON CONFLICT(cluster, namespace, name, report_type) DO UPDATE SET
 
 // UpsertReport inserts a report or updates it on the natural key. User notes are
 // intentionally preserved across updates (the watcher never overwrites notes).
-func (r *Repository) UpsertReport(ctx context.Context, rep model.Report) error {
+func (r *ReportStore) UpsertReport(ctx context.Context, rep model.Report) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	received := rep.ReceivedAt
 	if received == "" {
@@ -83,7 +83,7 @@ func scanReport(s interface{ Scan(...any) error }) (model.Report, error) {
 }
 
 // GetReport fetches a single report by natural key.
-func (r *Repository) GetReport(ctx context.Context, cluster, namespace, name, reportType string) (model.Report, error) {
+func (r *ReportStore) GetReport(ctx context.Context, cluster, namespace, name, reportType string) (model.Report, error) {
 	q := `SELECT` + selectCols + `
 		FROM reports
 		WHERE cluster = ? AND namespace = ? AND name = ? AND report_type = ?`
@@ -122,7 +122,7 @@ func buildWhere(f model.Filters, reportType string) (string, []any) {
 
 // ListReports returns reports of a type matching filters, newest first, plus the
 // total count for the same filters (ignoring limit/offset).
-func (r *Repository) ListReports(ctx context.Context, reportType string, f model.Filters) ([]model.Report, int64, error) {
+func (r *ReportStore) ListReports(ctx context.Context, reportType string, f model.Filters) ([]model.Report, int64, error) {
 	where, args := buildWhere(f, reportType)
 
 	var total int64
@@ -154,7 +154,7 @@ func (r *Repository) ListReports(ctx context.Context, reportType string, f model
 }
 
 // ListClusters returns the per-cluster counts from the clusters view.
-func (r *Repository) ListClusters(ctx context.Context) ([]model.ClusterInfo, error) {
+func (r *ReportStore) ListClusters(ctx context.Context) ([]model.ClusterInfo, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT cluster, vuln_count, sbom_count FROM clusters_view ORDER BY cluster`)
 	if err != nil {
@@ -174,7 +174,7 @@ func (r *Repository) ListClusters(ctx context.Context) ([]model.ClusterInfo, err
 }
 
 // ListNamespaces returns distinct namespaces, optionally scoped to a cluster.
-func (r *Repository) ListNamespaces(ctx context.Context, cluster string) ([]string, error) {
+func (r *ReportStore) ListNamespaces(ctx context.Context, cluster string) ([]string, error) {
 	q := `SELECT DISTINCT namespace FROM reports`
 	var args []any
 	if cluster != "" {
@@ -200,7 +200,7 @@ func (r *Repository) ListNamespaces(ctx context.Context, cluster string) ([]stri
 }
 
 // Stats returns the dashboard aggregate.
-func (r *Repository) Stats(ctx context.Context) (model.Stats, error) {
+func (r *ReportStore) Stats(ctx context.Context) (model.Stats, error) {
 	var s model.Stats
 	err := r.db.QueryRowContext(ctx, `
 		SELECT
@@ -224,7 +224,7 @@ func (r *Repository) Stats(ctx context.Context) (model.Stats, error) {
 }
 
 // CountByType returns the number of stored reports of a given type (for metrics).
-func (r *Repository) CountByType(ctx context.Context, reportType string) (int64, error) {
+func (r *ReportStore) CountByType(ctx context.Context, reportType string) (int64, error) {
 	var n int64
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM reports WHERE report_type = ?`, reportType).Scan(&n)
@@ -236,7 +236,7 @@ func (r *Repository) CountByType(ctx context.Context, reportType string) (int64,
 
 // DeleteReport removes a single report by natural key. A missing report is not
 // an error (delete is idempotent).
-func (r *Repository) DeleteReport(ctx context.Context, cluster, namespace, name, reportType string) error {
+func (r *ReportStore) DeleteReport(ctx context.Context, cluster, namespace, name, reportType string) error {
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM reports WHERE cluster = ? AND namespace = ? AND name = ? AND report_type = ?`,
 		cluster, namespace, name, reportType)
@@ -247,7 +247,7 @@ func (r *Repository) DeleteReport(ctx context.Context, cluster, namespace, name,
 }
 
 // DeleteByCluster removes all reports for a cluster; returns rows deleted.
-func (r *Repository) DeleteByCluster(ctx context.Context, cluster string) (int64, error) {
+func (r *ReportStore) DeleteByCluster(ctx context.Context, cluster string) (int64, error) {
 	res, err := r.db.ExecContext(ctx, `DELETE FROM reports WHERE cluster = ?`, cluster)
 	if err != nil {
 		return 0, fmt.Errorf("delete by cluster %s: %w", cluster, err)
@@ -257,7 +257,7 @@ func (r *Repository) DeleteByCluster(ctx context.Context, cluster string) (int64
 }
 
 // UpdateNotes sets the notes on a report, maintaining note timestamps.
-func (r *Repository) UpdateNotes(ctx context.Context, cluster, reportType, namespace, name, notes string) error {
+func (r *ReportStore) UpdateNotes(ctx context.Context, cluster, reportType, namespace, name, notes string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := r.db.ExecContext(ctx, `
 		UPDATE reports SET

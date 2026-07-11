@@ -7,7 +7,7 @@ import (
 	"github.com/duynhlab/trivy-viewer/internal/model"
 )
 
-func newTestRepo(t *testing.T) *Repository {
+func newTestDB(t *testing.T) *DB {
 	t.Helper()
 	ctx := context.Background()
 	db, err := Open(ctx, t.TempDir())
@@ -15,7 +15,12 @@ func newTestRepo(t *testing.T) *Repository {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return NewRepository(db)
+	return db
+}
+
+func newTestRepo(t *testing.T) *ReportStore {
+	t.Helper()
+	return NewReportStore(newTestDB(t))
 }
 
 func sampleVuln(cluster, ns, name string, crit, high int) model.Report {

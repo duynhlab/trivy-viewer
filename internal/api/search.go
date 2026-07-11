@@ -45,7 +45,7 @@ func (s *Server) searchVulnerabilities(w http.ResponseWriter, r *http.Request) {
 	limit := queryInt(r, "limit", defaultSearchLimit)
 	offset := queryInt(r, "offset", 0)
 
-	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeVuln, model.Filters{Limit: searchScanLimit})
+	reps, _, err := s.reports.ListReports(r.Context(), model.ReportTypeVuln, model.Filters{Limit: searchScanLimit})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -92,7 +92,7 @@ func (s *Server) searchVulnerabilities(w http.ResponseWriter, r *http.Request) {
 func (s *Server) suggestVulnerabilities(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	limit := queryInt(r, "limit", defaultSuggestLimit)
-	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeVuln, model.Filters{Limit: searchScanLimit})
+	reps, _, err := s.reports.ListReports(r.Context(), model.ReportTypeVuln, model.Filters{Limit: searchScanLimit})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -126,7 +126,7 @@ func (s *Server) searchComponents(w http.ResponseWriter, r *http.Request) {
 	limit := queryInt(r, "limit", defaultSearchLimit)
 	offset := queryInt(r, "offset", 0)
 
-	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeSbom, model.Filters{Limit: searchScanLimit})
+	reps, _, err := s.reports.ListReports(r.Context(), model.ReportTypeSbom, model.Filters{Limit: searchScanLimit})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -155,7 +155,7 @@ func (s *Server) searchComponents(w http.ResponseWriter, r *http.Request) {
 func (s *Server) suggestComponents(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 	limit := queryInt(r, "limit", defaultSuggestLimit)
-	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeSbom, model.Filters{Limit: searchScanLimit})
+	reps, _, err := s.reports.ListReports(r.Context(), model.ReportTypeSbom, model.Filters{Limit: searchScanLimit})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.repo.Stats(r.Context())
+	stats, err := s.reports.Stats(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -28,7 +28,7 @@ func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listClusters(w http.ResponseWriter, r *http.Request) {
-	clusters, err := s.repo.ListClusters(r.Context())
+	clusters, err := s.reports.ListClusters(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -40,7 +40,7 @@ func (s *Server) listClusters(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listNamespaces(w http.ResponseWriter, r *http.Request) {
-	nss, err := s.repo.ListNamespaces(r.Context(), r.URL.Query().Get("cluster"))
+	nss, err := s.reports.ListNamespaces(r.Context(), r.URL.Query().Get("cluster"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -55,14 +55,14 @@ func (s *Server) listNamespaces(w http.ResponseWriter, r *http.Request) {
 // for v1 we return the current snapshot as a single data point so the dashboard
 // renders without error.
 func (s *Server) getTrends(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.repo.Stats(r.Context())
+	stats, err := s.reports.Stats(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	// Cluster names only decorate the trends meta block; degrade to an empty
 	// list rather than failing the whole dashboard if the view query errors.
-	clusters, err := s.repo.ListClusters(r.Context())
+	clusters, err := s.reports.ListClusters(r.Context())
 	if err != nil {
 		slog.Warn("trends: list clusters failed", "error", err)
 	}
@@ -91,12 +91,12 @@ func (s *Server) getTrends(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) watcherStatus(w http.ResponseWriter, r *http.Request) {
-	vuln, err := s.repo.CountByType(r.Context(), model.ReportTypeVuln)
+	vuln, err := s.reports.CountByType(r.Context(), model.ReportTypeVuln)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	sbom, err := s.repo.CountByType(r.Context(), model.ReportTypeSbom)
+	sbom, err := s.reports.CountByType(r.Context(), model.ReportTypeSbom)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

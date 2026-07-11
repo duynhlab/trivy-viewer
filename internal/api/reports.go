@@ -30,7 +30,7 @@ func (s *Server) filtersFrom(r *http.Request) model.Filters {
 }
 
 func (s *Server) listReports(w http.ResponseWriter, r *http.Request, reportType string) {
-	reps, total, err := s.repo.ListReports(r.Context(), reportType, s.filtersFrom(r))
+	reps, total, err := s.reports.ListReports(r.Context(), reportType, s.filtersFrom(r))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -51,7 +51,7 @@ func (s *Server) listSbomReports(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getReport(w http.ResponseWriter, r *http.Request, reportType string) {
-	rep, err := s.repo.GetReport(r.Context(),
+	rep, err := s.reports.GetReport(r.Context(),
 		chi.URLParam(r, "cluster"), chi.URLParam(r, "namespace"), chi.URLParam(r, "name"), reportType)
 	if errors.Is(err, storage.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "report not found")
@@ -84,7 +84,7 @@ func (s *Server) updateNotes(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	err := s.repo.UpdateNotes(r.Context(),
+	err := s.reports.UpdateNotes(r.Context(),
 		chi.URLParam(r, "cluster"), chi.URLParam(r, "reportType"),
 		chi.URLParam(r, "namespace"), chi.URLParam(r, "name"), body.Notes)
 	if errors.Is(err, storage.ErrNotFound) {
