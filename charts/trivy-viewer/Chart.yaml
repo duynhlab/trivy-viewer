@@ -2,8 +2,8 @@ apiVersion: v2
 name: trivy-viewer
 description: Multi-cluster Trivy report collector and viewer (Go)
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
 home: https://github.com/duynhlab/trivy-viewer
 sources:
   - https://github.com/duynhlab/trivy-viewer
