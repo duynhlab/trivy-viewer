@@ -133,7 +133,8 @@ func (r *Repository) ListReports(ctx context.Context, reportType string, f model
 
 	q := `SELECT` + selectCols + ` FROM reports WHERE ` + where + ` ORDER BY updated_at DESC`
 	if f.Limit > 0 {
-		q += fmt.Sprintf(" LIMIT %d OFFSET %d", f.Limit, f.Offset)
+		q += " LIMIT ? OFFSET ?"
+		args = append(args, f.Limit, f.Offset)
 	}
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

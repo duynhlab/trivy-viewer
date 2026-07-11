@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
@@ -59,7 +60,12 @@ func (s *Server) getTrends(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	clusters, _ := s.repo.ListClusters(r.Context())
+	// Cluster names only decorate the trends meta block; degrade to an empty
+	// list rather than failing the whole dashboard if the view query errors.
+	clusters, err := s.repo.ListClusters(r.Context())
+	if err != nil {
+		slog.Warn("trends: list clusters failed", "error", err)
+	}
 	names := make([]string, 0, len(clusters))
 	for _, c := range clusters {
 		names = append(names, c.Name)
@@ -85,8 +91,16 @@ func (s *Server) getTrends(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) watcherStatus(w http.ResponseWriter, r *http.Request) {
-	vuln, _ := s.repo.CountByType(r.Context(), model.ReportTypeVuln)
-	sbom, _ := s.repo.CountByType(r.Context(), model.ReportTypeSbom)
+	vuln, err := s.repo.CountByType(r.Context(), model.ReportTypeVuln)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	sbom, err := s.repo.CountByType(r.Context(), model.ReportTypeSbom)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	info := func(n int64) map[string]any {
 		return map[string]any{"running": true, "initial_sync_done": true, "reports_count": n}
 	}

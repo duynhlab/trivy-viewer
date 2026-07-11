@@ -42,7 +42,7 @@ const searchScanLimit = 5000
 
 func (s *Server) searchVulnerabilities(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	limit := queryInt(r, "limit", 100)
+	limit := queryInt(r, "limit", defaultSearchLimit)
 	offset := queryInt(r, "offset", 0)
 
 	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeVuln, model.Filters{Limit: searchScanLimit})
@@ -91,7 +91,7 @@ func (s *Server) searchVulnerabilities(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) suggestVulnerabilities(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	limit := queryInt(r, "limit", 10)
+	limit := queryInt(r, "limit", defaultSuggestLimit)
 	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeVuln, model.Filters{Limit: searchScanLimit})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -123,7 +123,7 @@ func (s *Server) suggestVulnerabilities(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) searchComponents(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("component")))
-	limit := queryInt(r, "limit", 100)
+	limit := queryInt(r, "limit", defaultSearchLimit)
 	offset := queryInt(r, "offset", 0)
 
 	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeSbom, model.Filters{Limit: searchScanLimit})
@@ -154,7 +154,7 @@ func (s *Server) searchComponents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) suggestComponents(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
-	limit := queryInt(r, "limit", 10)
+	limit := queryInt(r, "limit", defaultSuggestLimit)
 	reps, _, err := s.repo.ListReports(r.Context(), model.ReportTypeSbom, model.Filters{Limit: searchScanLimit})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

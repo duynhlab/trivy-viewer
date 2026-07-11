@@ -7,6 +7,14 @@ import (
 	"strconv"
 )
 
+// Default values for handler query parameters, shared across endpoints.
+const (
+	defaultSearchLimit      = 100
+	defaultSuggestLimit     = 10
+	defaultLogPageLimit     = 50
+	defaultLogRetentionDays = 7
+)
+
 // errorBody is the JSON error shape the frontend reads (`body.error`).
 type errorBody struct {
 	Error string `json:"error"`

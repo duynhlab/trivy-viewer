@@ -16,7 +16,7 @@ func (s *Server) listAPILogs(w http.ResponseWriter, r *http.Request) {
 		StatusMin: queryInt(r, "status_min", 0),
 		StatusMax: queryInt(r, "status_max", 0),
 		User:      q.Get("user"),
-		Limit:     queryInt(r, "limit", 50),
+		Limit:     queryInt(r, "limit", defaultLogPageLimit),
 		Offset:    queryInt(r, "offset", 0),
 	}
 	items, total, err := s.repo.ListAPILogs(r.Context(), f)
@@ -44,7 +44,7 @@ func (s *Server) cleanupAPILogs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	days := queryInt(r, "retention_days", 7)
+	days := queryInt(r, "retention_days", defaultLogRetentionDays)
 	deleted, err := s.repo.CleanupAPILogs(r.Context(), days, "admin")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
