@@ -29,6 +29,9 @@ persistence:
 
 serviceAccount:
   create: true
+  # Empty = one ServiceAccount per component (server writes registration
+  # Secrets; scraper reads Secrets + Trivy CRDs). Setting a name collapses
+  # both components onto that single account.
   name: ""
   annotations: {}
 
@@ -39,6 +42,7 @@ rbac:
 server:
   replicaCount: 1
   port: 3000
+  # CPU limits deliberately omitted (avoid throttling); memory is capped.
   resources:
     requests: {cpu: 50m, memory: 64Mi}
     limits: {memory: 256Mi}
@@ -51,6 +55,7 @@ scraper:
   watchLocal: true
   clusterName: local
   namespaces: []       # empty = all namespaces
+  # CPU limits deliberately omitted (avoid throttling); memory is capped.
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {memory: 512Mi}

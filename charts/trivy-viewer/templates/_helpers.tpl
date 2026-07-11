@@ -32,17 +32,36 @@ app.kubernetes.io/name: {{ include "trivy-viewer.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{/* ServiceAccount name */}}
-{{- define "trivy-viewer.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-{{- default (include "trivy-viewer.fullname" .) .Values.serviceAccount.name -}}
-{{- else -}}
-{{- default "default" .Values.serviceAccount.name -}}
-{{- end -}}
-{{- end -}}
-
 {{/* Image reference */}}
 {{- define "trivy-viewer.image" -}}
 {{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
 {{- printf "%s:%s" .Values.image.repository $tag -}}
+{{- end -}}
+
+{{/* Per-component ServiceAccount names. A user-supplied
+     .Values.serviceAccount.name collapses both components onto that single
+     account (backward compatible with releases before the split). */}}
+{{- define "trivy-viewer.serverServiceAccountName" -}}
+{{- if .Values.serviceAccount.name -}}
+{{- .Values.serviceAccount.name -}}
+{{- else if .Values.serviceAccount.create -}}
+{{- printf "%s-server" (include "trivy-viewer.fullname" .) -}}
+{{- else -}}
+default
+{{- end -}}
+{{- end -}}
+
+{{- define "trivy-viewer.scraperServiceAccountName" -}}
+{{- if .Values.serviceAccount.name -}}
+{{- .Values.serviceAccount.name -}}
+{{- else if .Values.serviceAccount.create -}}
+{{- printf "%s-scraper" (include "trivy-viewer.fullname" .) -}}
+{{- else -}}
+default
+{{- end -}}
+{{- end -}}
+
+{{/* Namespace holding cluster-registration Secrets */}}
+{{- define "trivy-viewer.hubSecretNamespace" -}}
+{{- .Values.hubSecretNamespace | default .Release.Namespace -}}
 {{- end -}}
