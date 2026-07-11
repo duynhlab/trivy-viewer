@@ -36,11 +36,11 @@ type CleanupHistoryEntry struct {
 
 // APILogStats powers the Admin audit dashboard cards.
 type APILogStats struct {
-	TotalRequests   int64                    `json:"total_requests"`
-	RequestsToday   int64                    `json:"requests_today"`
-	AvgDurationMS   float64                  `json:"avg_duration_ms"`
-	ErrorCount      int64                    `json:"error_count"`
-	UniqueUsers     int64                    `json:"unique_users"`
-	TopPaths        [][3]any                 `json:"top_paths"`
-	LastCleanup     *CleanupHistoryEntry     `json:"last_cleanup"`
+	TotalRequests int64                `json:"total_requests"`
+	RequestsToday int64                `json:"requests_today"`
+	AvgDurationMS float64              `json:"avg_duration_ms"`
+	ErrorCount    int64                `json:"error_count"`
+	UniqueUsers   int64                `json:"unique_users"`
+	TopPaths      [][3]any             `json:"top_paths"`
+	LastCleanup   *CleanupHistoryEntry `json:"last_cleanup"`
 }

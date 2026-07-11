@@ -51,7 +51,7 @@ func (s *Server) cleanupAPILogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"deleted":         deleted,
+		"deleted":        deleted,
 		"retention_days": days,
 	})
 }

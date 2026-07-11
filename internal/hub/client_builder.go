@@ -19,13 +19,13 @@ func BuildRESTConfig(cfg ClusterConfig) (*rest.Config, error) {
 		Host:        cfg.Server,
 		BearerToken: cfg.BearerToken,
 	}
-	restCfg.TLSClientConfig.Insecure = cfg.Insecure
+	restCfg.Insecure = cfg.Insecure
 	if cfg.CAData != "" {
 		ca, err := base64.StdEncoding.DecodeString(cfg.CAData)
 		if err != nil {
 			return nil, fmt.Errorf("cluster %q: decode caData: %w", cfg.Name, err)
 		}
-		restCfg.TLSClientConfig.CAData = ca
+		restCfg.CAData = ca
 	}
 	return restCfg, nil
 }
