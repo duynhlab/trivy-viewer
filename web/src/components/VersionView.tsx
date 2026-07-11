@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getVersion, getStatus, getConfig } from '../api'
-import { escapeHtml, formatDate } from '../utils'
+import { escapeHtml, formatDate, logError } from '../utils'
 import type { VersionResponse, StatusResponse, ConfigResponse } from '../types'
 
 export default function VersionView() {
@@ -11,9 +11,9 @@ export default function VersionView() {
   const [config, setConfig] = useState<ConfigResponse | null>(null)
 
   useEffect(() => {
-    getVersion().then(setVersion).catch(() => {})
-    getStatus().then(setStatus).catch(() => {})
-    getConfig().then(setConfig).catch(() => {})
+    getVersion().then(setVersion).catch(logError('load version'))
+    getStatus().then(setStatus).catch(logError('load status'))
+    getConfig().then(setConfig).catch(logError('load config'))
   }, [])
 
   const commitShort = version ? version.commit.substring(0, 7) : ''

@@ -214,4 +214,6 @@ Trivy Viewer reads **Trivy Operator CRs**, not Pods directly.
 
 ## License
 
-See the repository license file when added.
+MIT — see [LICENSE](LICENSE). The embedded React UI is derived from
+[younsl/o](https://github.com/younsl/o) (MIT); see the third-party notice in
+the license file.

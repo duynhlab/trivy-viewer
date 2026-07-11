@@ -10,14 +10,14 @@ import (
 )
 
 func TestAdminLogsEndpoints(t *testing.T) {
-	srv, repo := newTestServer(t)
+	srv, _ := newTestServer(t)
 	ctx := context.Background()
 
-	_ = repo.InsertAPILog(ctx, model.APILogEntry{
+	_ = srv.audit.InsertAPILog(ctx, model.APILogEntry{
 		Method: "GET", Path: "/api/v1/stats", StatusCode: 200, DurationMS: 12,
 		CreatedAt: "2026-07-09T12:00:00Z",
 	})
-	_ = repo.InsertAPILog(ctx, model.APILogEntry{
+	_ = srv.audit.InsertAPILog(ctx, model.APILogEntry{
 		Method: "GET", Path: "/api/v1/clusters", StatusCode: 404, DurationMS: 3,
 		CreatedAt: "2026-07-09T12:01:00Z",
 	})

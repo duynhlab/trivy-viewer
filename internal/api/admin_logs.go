@@ -16,10 +16,10 @@ func (s *Server) listAPILogs(w http.ResponseWriter, r *http.Request) {
 		StatusMin: queryInt(r, "status_min", 0),
 		StatusMax: queryInt(r, "status_max", 0),
 		User:      q.Get("user"),
-		Limit:     queryInt(r, "limit", 50),
+		Limit:     queryInt(r, "limit", defaultLogPageLimit),
 		Offset:    queryInt(r, "offset", 0),
 	}
-	items, total, err := s.repo.ListAPILogs(r.Context(), f)
+	items, total, err := s.audit.ListAPILogs(r.Context(), f)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -28,7 +28,7 @@ func (s *Server) listAPILogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) apiLogStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.repo.APILogStats(r.Context())
+	stats, err := s.audit.APILogStats(r.Context())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -44,14 +44,14 @@ func (s *Server) cleanupAPILogs(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	days := queryInt(r, "retention_days", 7)
-	deleted, err := s.repo.CleanupAPILogs(r.Context(), days, "admin")
+	days := queryInt(r, "retention_days", defaultLogRetentionDays)
+	deleted, err := s.audit.CleanupAPILogs(r.Context(), days, "admin")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"deleted":         deleted,
+		"deleted":        deleted,
 		"retention_days": days,
 	})
 }

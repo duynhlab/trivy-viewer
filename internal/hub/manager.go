@@ -23,6 +23,11 @@ type ClientFactory func(ClusterConfig) (dynamic.Interface, error)
 // Manager watches cluster-registration Secrets and maintains one watcher per
 // registered cluster. Adding a Secret spawns a watcher; deleting it stops the
 // watcher and purges that cluster's reports.
+//
+// Correctness note: upsert/remove are invoked from the Secret informer, which
+// delivers events for a given key serially from a single dispatch goroutine.
+// The mutex protects the active map against concurrent reads (ActiveCount,
+// stopAll); it does not need to serialize upsert against itself.
 type Manager struct {
 	kube      kubernetes.Interface
 	namespace string
@@ -36,9 +41,8 @@ type Manager struct {
 	// OnEvent forwards watcher metric events (reportType, eventType).
 	OnEvent func(reportType, eventType string)
 
-	mu        sync.Mutex
-	active    map[string]*clusterWatch
-	parentCtx context.Context
+	mu     sync.Mutex
+	active map[string]*clusterWatch
 }
 
 type clusterWatch struct {
@@ -65,8 +69,6 @@ func NewManager(kube kubernetes.Interface, namespace string, handler watcher.Han
 // Run starts the Secret informer and blocks until ctx is cancelled, then stops
 // all per-cluster watchers.
 func (m *Manager) Run(ctx context.Context) error {
-	m.parentCtx = ctx
-
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		m.kube, 10*time.Minute,
 		informers.WithNamespace(m.namespace),
@@ -76,9 +78,9 @@ func (m *Manager) Run(ctx context.Context) error {
 	)
 	informer := factory.Core().V1().Secrets().Informer()
 	if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj any) { m.upsert(secretOf(obj)) },
-		UpdateFunc: func(_, newObj any) { m.upsert(secretOf(newObj)) },
-		DeleteFunc: func(obj any) { m.remove(secretOf(obj)) },
+		AddFunc:    func(obj any) { m.upsert(ctx, secretOf(obj)) },
+		UpdateFunc: func(_, newObj any) { m.upsert(ctx, secretOf(newObj)) },
+		DeleteFunc: func(obj any) { m.remove(ctx, secretOf(obj)) },
 	}); err != nil {
 		return fmt.Errorf("add secret event handler: %w", err)
 	}
@@ -96,7 +98,9 @@ func (m *Manager) Run(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) upsert(s *corev1.Secret) {
+// upsert attaches (or restarts) the watcher for a registration Secret. ctx is
+// the manager's run context; per-cluster watcher contexts derive from it.
+func (m *Manager) upsert(ctx context.Context, s *corev1.Secret) {
 	if s == nil {
 		return
 	}
@@ -109,6 +113,7 @@ func (m *Manager) upsert(s *corev1.Secret) {
 	}
 	m.mu.Unlock()
 
+	// Parsing and client building run outside the lock (they can be slow).
 	cfg, err := ParseClusterSecret(s)
 	if err != nil {
 		slog.Warn("skip invalid cluster secret", "key", key, "error", err)
@@ -122,10 +127,14 @@ func (m *Manager) upsert(s *corev1.Secret) {
 
 	m.mu.Lock()
 	if cw, ok := m.active[key]; ok {
+		if cw.resourceVersion == s.ResourceVersion {
+			m.mu.Unlock() // already handled while we were unlocked
+			return
+		}
 		cw.cancel() // restart to pick up token/CA/server changes
 		delete(m.active, key)
 	}
-	wctx, cancel := context.WithCancel(m.parentCtx)
+	wctx, cancel := context.WithCancel(ctx)
 	m.active[key] = &clusterWatch{cancel: cancel, clusterName: cfg.Name, resourceVersion: s.ResourceVersion}
 	count := len(m.active)
 	m.mu.Unlock()
@@ -141,7 +150,7 @@ func (m *Manager) upsert(s *corev1.Secret) {
 	}()
 }
 
-func (m *Manager) remove(s *corev1.Secret) {
+func (m *Manager) remove(ctx context.Context, s *corev1.Secret) {
 	if s == nil {
 		return
 	}
@@ -162,7 +171,7 @@ func (m *Manager) remove(s *corev1.Secret) {
 	m.reportCount(count)
 	slog.Info("detached per-cluster watcher", "cluster", cw.clusterName)
 	if m.OnPurge != nil {
-		m.OnPurge(m.parentCtx, cw.clusterName)
+		m.OnPurge(ctx, cw.clusterName)
 	}
 }
 

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -9,8 +10,26 @@ import (
 	"github.com/duynhlab/trivy-viewer/internal/model"
 )
 
+// APILogStore provides typed access to the api_logs and cleanup_history
+// tables backing the Admin audit UI. It shares the database handle with
+// ReportStore but owns an unrelated concern, hence the separate type.
+type APILogStore struct {
+	db *sql.DB
+}
+
+// NewAPILogStore builds an audit-log store over the given database.
+func NewAPILogStore(db *DB) *APILogStore { return &APILogStore{db: db.sql} }
+
+// Fallback values guarding direct store calls; the API layer applies the
+// same defaults before calling in.
+const (
+	defaultLogListLimit      = 50
+	defaultLogRetentionDays  = 7
+	defaultCleanupTriggerdBy = "admin"
+)
+
 // InsertAPILog records one HTTP request for the audit UI.
-func (r *Repository) InsertAPILog(ctx context.Context, entry model.APILogEntry) error {
+func (r *APILogStore) InsertAPILog(ctx context.Context, entry model.APILogEntry) error {
 	created := entry.CreatedAt
 	if created == "" {
 		created = time.Now().UTC().Format(time.RFC3339)
@@ -30,11 +49,11 @@ func (r *Repository) InsertAPILog(ctx context.Context, entry model.APILogEntry) 
 }
 
 // ListAPILogs returns audit rows newest-first with optional filters.
-func (r *Repository) ListAPILogs(ctx context.Context, f model.APILogFilters) ([]model.APILogEntry, int64, error) {
+func (r *APILogStore) ListAPILogs(ctx context.Context, f model.APILogFilters) ([]model.APILogEntry, int64, error) {
 	where, args := apiLogWhere(f)
 	limit := f.Limit
 	if limit <= 0 {
-		limit = 50
+		limit = defaultLogListLimit
 	}
 	offset := f.Offset
 	if offset < 0 {
@@ -112,7 +131,7 @@ func apiLogWhere(f model.APILogFilters) (string, []any) {
 }
 
 // APILogStats aggregates audit metrics for the Admin UI.
-func (r *Repository) APILogStats(ctx context.Context) (model.APILogStats, error) {
+func (r *APILogStore) APILogStats(ctx context.Context) (model.APILogStats, error) {
 	var stats model.APILogStats
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM api_logs`).Scan(&stats.TotalRequests); err != nil {
 		return stats, fmt.Errorf("total requests: %w", err)
@@ -173,12 +192,12 @@ func (r *Repository) APILogStats(ctx context.Context) (model.APILogStats, error)
 }
 
 // CleanupAPILogs deletes rows older than retentionDays and records history.
-func (r *Repository) CleanupAPILogs(ctx context.Context, retentionDays int, triggeredBy string) (int64, error) {
+func (r *APILogStore) CleanupAPILogs(ctx context.Context, retentionDays int, triggeredBy string) (int64, error) {
 	if retentionDays <= 0 {
-		retentionDays = 7
+		retentionDays = defaultLogRetentionDays
 	}
 	if triggeredBy == "" {
-		triggeredBy = "admin"
+		triggeredBy = defaultCleanupTriggerdBy
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays).Format(time.RFC3339)
 

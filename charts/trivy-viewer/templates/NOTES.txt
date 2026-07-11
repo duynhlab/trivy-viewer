@@ -15,3 +15,11 @@ Access the UI:
 Register an Edge cluster from the UI at /admin/clusters, or apply a cluster
 Secret labelled trivy-viewer.io/secret-type=cluster in namespace
 {{ .Values.hubSecretNamespace | default .Release.Namespace }}.
+
+{{- if not .Values.serviceAccount.name }}
+
+Note (upgrades from <= 0.1.0): each component now runs under its own
+ServiceAccount ({{ include "trivy-viewer.serverServiceAccountName" . }} /
+{{ include "trivy-viewer.scraperServiceAccountName" . }}) with split RBAC.
+Set serviceAccount.name to restore a single shared account.
+{{- end }}

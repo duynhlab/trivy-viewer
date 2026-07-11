@@ -88,6 +88,58 @@ func TestNormalizeMissingName(t *testing.T) {
 	}
 }
 
+func TestExtractAppLabelPrecedence(t *testing.T) {
+	cases := []struct {
+		name   string
+		labels string
+		want   string
+	}{
+		{"trivy-operator label wins", `{"trivy-operator.resource.name":"op","app.kubernetes.io/name":"k8s","app":"plain"}`, "op"},
+		{"k8s app name second", `{"app.kubernetes.io/name":"k8s","app":"plain"}`, "k8s"},
+		{"plain app last", `{"app":"plain"}`, "plain"},
+		{"empty label skipped", `{"trivy-operator.resource.name":"","app":"plain"}`, "plain"},
+		{"non-string label skipped", `{"trivy-operator.resource.name":42,"app":"plain"}`, "plain"},
+		{"no labels", `{}`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := mustObj(t, `{"metadata":{"name":"x","namespace":"y","labels":`+tc.labels+`}}`)
+			rep, err := Normalize("hub", model.ReportTypeVuln, obj)
+			if err != nil {
+				t.Fatalf("Normalize: %v", err)
+			}
+			if rep.App != tc.want {
+				t.Errorf("app = %q, want %q", rep.App, tc.want)
+			}
+		})
+	}
+}
+
+func TestExtractImageVariants(t *testing.T) {
+	cases := []struct {
+		name     string
+		artifact string
+		want     string
+	}{
+		{"repo and tag", `{"repository":"library/nginx","tag":"1.25"}`, "library/nginx:1.25"},
+		{"repo only", `{"repository":"library/nginx"}`, "library/nginx"},
+		{"empty repo", `{"tag":"1.25"}`, ""},
+		{"missing artifact", `null`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			obj := mustObj(t, `{"metadata":{"name":"x"},"report":{"artifact":`+tc.artifact+`}}`)
+			rep, err := Normalize("hub", model.ReportTypeVuln, obj)
+			if err != nil {
+				t.Fatalf("Normalize: %v", err)
+			}
+			if rep.Image != tc.want {
+				t.Errorf("image = %q, want %q", rep.Image, tc.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeMissingFieldsDefaultsZero(t *testing.T) {
 	obj := mustObj(t, `{"metadata": {"name": "x", "namespace": "y"}}`)
 	rep, err := Normalize("hub", model.ReportTypeVuln, obj)

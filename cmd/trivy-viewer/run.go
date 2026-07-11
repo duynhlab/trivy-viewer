@@ -21,7 +21,7 @@ func runScraper(ctx context.Context, cfg *config.Config, m *metrics.Metrics, h *
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	repo := storage.NewRepository(db)
+	repo := storage.NewReportStore(db)
 
 	return scraper.Run(ctx, cfg, repo, m, func() { h.SetReady(true) })
 }
@@ -32,7 +32,7 @@ func runServer(ctx context.Context, cfg *config.Config, m *metrics.Metrics, h *h
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	repo := storage.NewRepository(db)
+	repo := storage.NewReportStore(db)
 
 	ui, err := web.Handler()
 	if err != nil {
@@ -51,7 +51,8 @@ func runServer(ctx context.Context, cfg *config.Config, m *metrics.Metrics, h *h
 	}
 
 	srv := api.New(api.Options{
-		Repo:         repo,
+		Reports:      repo,
+		Audit:        storage.NewAPILogStore(db),
 		Config:       cfg,
 		Metrics:      m,
 		DBPath:       db.Path(),

@@ -19,14 +19,45 @@ import type {
   WatcherStatusResponse,
 } from './types'
 
-async function fetchApi<T>(endpoint: string): Promise<T> {
-  const response = await fetch(endpoint)
+/**
+ * Redirect to the login page and return a never-resolving promise so the
+ * caller's chain stops (the page is about to navigate away anyway).
+ */
+function redirectToLogin<T>(): Promise<T> {
+  const returnTo = encodeURIComponent(window.location.pathname)
+  window.location.href = `/auth/login?return_to=${returnTo}`
+  return new Promise(() => {})
+}
+
+/** Build an Error from a failed response: `body.error`, else the fallback. */
+async function errorFrom(response: Response, fallback?: string): Promise<Error> {
+  const body = (await response.json().catch(() => ({}))) as { error?: string }
+  return new Error(body.error || fallback || `HTTP ${response.status}`)
+}
+
+interface RequestOptions {
+  method?: string
+  body?: unknown
+  /** Fallback error message when the response has no `error` field. */
+  errorMessage?: string
+}
+
+/**
+ * Shared request helper: 401 redirects to login, any other non-OK status
+ * throws with the server's `error` message, OK parses JSON.
+ */
+async function request<T>(endpoint: string, opts: RequestOptions = {}): Promise<T> {
+  const init: RequestInit = { method: opts.method ?? 'GET' }
+  if (opts.body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body = JSON.stringify(opts.body)
+  }
+  const response = await fetch(endpoint, init)
   if (response.status === 401) {
-    // Redirect to login on authentication failure
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    // Return a never-resolving promise to prevent further processing
-    return new Promise(() => {})
+    return redirectToLogin<T>()
+  }
+  if (!response.ok) {
+    throw await errorFrom(response, opts.errorMessage)
   }
   return response.json() as Promise<T>
 }
@@ -46,7 +77,7 @@ export function getReports(
       ? `/api/v1/vulnerabilityreports?${params}`
       : `/api/v1/sbomreports?${params}`
 
-  return fetchApi(endpoint)
+  return request(endpoint)
 }
 
 export function getReportDetail(
@@ -59,17 +90,17 @@ export function getReportDetail(
     reportType === 'vulnerabilityreport'
       ? '/api/v1/vulnerabilityreports'
       : '/api/v1/sbomreports'
-  return fetchApi(
+  return request(
     `${base}/${encodeURIComponent(cluster)}/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`,
   )
 }
 
 export function getStats(): Promise<Stats> {
-  return fetchApi('/api/v1/stats')
+  return request('/api/v1/stats')
 }
 
 export function getClusters(): Promise<ListResponse<ClusterInfo>> {
-  return fetchApi('/api/v1/clusters')
+  return request('/api/v1/clusters')
 }
 
 export function getNamespaces(
@@ -78,23 +109,23 @@ export function getNamespaces(
   const endpoint = cluster
     ? `/api/v1/namespaces?cluster=${encodeURIComponent(cluster)}`
     : '/api/v1/namespaces'
-  return fetchApi(endpoint)
+  return request(endpoint)
 }
 
 export function getWatcherStatus(): Promise<WatcherStatusResponse> {
-  return fetchApi('/api/v1/watcher/status')
+  return request('/api/v1/watcher/status')
 }
 
 export function getVersion(): Promise<VersionResponse> {
-  return fetchApi('/api/v1/version')
+  return request('/api/v1/version')
 }
 
 export function getStatus(): Promise<StatusResponse> {
-  return fetchApi('/api/v1/status')
+  return request('/api/v1/status')
 }
 
 export function getConfig(): Promise<ConfigResponse> {
-  return fetchApi('/api/v1/config')
+  return request('/api/v1/config')
 }
 
 export function getDashboardTrends(
@@ -103,11 +134,11 @@ export function getDashboardTrends(
 ): Promise<TrendResponse> {
   const params = new URLSearchParams({ range })
   if (cluster) params.append('cluster', cluster)
-  return fetchApi(`/api/v1/dashboard/trends?${params}`)
+  return request(`/api/v1/dashboard/trends?${params}`)
 }
 
 export async function listTokens(): Promise<{ tokens: TokenInfo[] }> {
-  return fetchApi('/api/v1/auth/tokens')
+  return request('/api/v1/auth/tokens')
 }
 
 export async function createToken(
@@ -115,27 +146,11 @@ export async function createToken(
   description: string,
   expiresDays: number,
 ): Promise<CreateTokenResponse> {
-  const response = await fetch('/api/v1/auth/tokens', {
+  return request('/api/v1/auth/tokens', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description, expires_days: expiresDays }),
+    body: { name, description, expires_days: expiresDays },
+    errorMessage: 'Failed to create token',
   })
-  if (response.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  if (!response.ok) {
-    let message = 'Failed to create token'
-    try {
-      const err = await response.json()
-      if (err.error) message = err.error
-    } catch {
-      // response body is not JSON
-    }
-    throw new Error(message)
-  }
-  return response.json()
 }
 
 export async function deleteToken(tokenId: number): Promise<boolean> {
@@ -143,9 +158,7 @@ export async function deleteToken(tokenId: number): Promise<boolean> {
     method: 'DELETE',
   })
   if (response.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
+    return redirectToLogin<boolean>()
   }
   return response.ok
 }
@@ -158,7 +171,7 @@ export function searchVulnerabilities(
   const params = new URLSearchParams({ q })
   if (limit !== undefined) params.append('limit', String(limit))
   if (offset !== undefined) params.append('offset', String(offset))
-  return fetchApi(`/api/v1/vulnerabilityreports/vulnerabilities/search?${params}`)
+  return request(`/api/v1/vulnerabilityreports/vulnerabilities/search?${params}`)
 }
 
 export function suggestVulnerabilities(
@@ -167,7 +180,7 @@ export function suggestVulnerabilities(
 ): Promise<string[]> {
   const params = new URLSearchParams({ q })
   if (limit !== undefined) params.append('limit', String(limit))
-  return fetchApi(`/api/v1/vulnerabilityreports/vulnerabilities/suggest?${params}`)
+  return request(`/api/v1/vulnerabilityreports/vulnerabilities/suggest?${params}`)
 }
 
 export function suggestSbomComponents(
@@ -176,7 +189,7 @@ export function suggestSbomComponents(
 ): Promise<string[]> {
   const params = new URLSearchParams({ q })
   if (limit !== undefined) params.append('limit', String(limit))
-  return fetchApi(`/api/v1/sbomreports/components/suggest?${params}`)
+  return request(`/api/v1/sbomreports/components/suggest?${params}`)
 }
 
 export function searchSbomComponents(
@@ -187,7 +200,7 @@ export function searchSbomComponents(
   const params = new URLSearchParams({ component })
   if (limit !== undefined) params.append('limit', String(limit))
   if (offset !== undefined) params.append('offset', String(offset))
-  return fetchApi(`/api/v1/sbomreports/components/search?${params}`)
+  return request(`/api/v1/sbomreports/components/search?${params}`)
 }
 
 // ───── Admin API ─────
@@ -216,43 +229,20 @@ export function getApiLogs(
   if (params.limit !== undefined) search.append('limit', String(params.limit))
   if (params.offset !== undefined)
     search.append('offset', String(params.offset))
-  return fetchApiChecked(`/api/v1/admin/logs?${search}`)
+  return request(`/api/v1/admin/logs?${search}`)
 }
 
 export function getApiLogStats(): Promise<ApiLogStats> {
-  return fetchApiChecked('/api/v1/admin/logs/stats')
-}
-
-async function fetchApiChecked<T>(endpoint: string): Promise<T> {
-  const response = await fetch(endpoint)
-  if (response.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  const body = (await response.json()) as T & { error?: string }
-  if (!response.ok) {
-    throw new Error(body.error ?? `HTTP ${response.status}`)
-  }
-  return body
+  return request('/api/v1/admin/logs/stats')
 }
 
 export async function cleanupApiLogs(
   retentionDays: number,
 ): Promise<{ deleted: number; retention_days: number }> {
-  const response = await fetch(
-    `/api/v1/admin/logs?retention_days=${retentionDays}`,
-    { method: 'DELETE' },
-  )
-  if (response.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  if (response.status === 403) {
-    throw new Error('Access denied')
-  }
-  return response.json()
+  return request(`/api/v1/admin/logs?retention_days=${retentionDays}`, {
+    method: 'DELETE',
+    errorMessage: 'Access denied',
+  })
 }
 
 // ── Alerts ──
@@ -267,85 +257,32 @@ export interface AlertListResponse {
 }
 
 export async function listAlerts(): Promise<AlertListResponse> {
-  return fetchApi('/api/v1/alerts')
+  return request('/api/v1/alerts')
 }
 
 export async function getAlert(name: string): Promise<AlertRule> {
-  return fetchApi(`/api/v1/alerts/${encodeURIComponent(name)}`)
+  return request(`/api/v1/alerts/${encodeURIComponent(name)}`)
 }
 
 export async function createAlert(rule: AlertRuleInput): Promise<AlertRule> {
-  const res = await fetch('/api/v1/alerts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rule),
-  })
-  if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
-  }
-  return res.json()
+  return request('/api/v1/alerts', { method: 'POST', body: rule })
 }
 
 export async function updateAlert(name: string, rule: AlertRuleInput): Promise<AlertRule> {
-  const res = await fetch(`/api/v1/alerts/${encodeURIComponent(name)}`, {
+  return request(`/api/v1/alerts/${encodeURIComponent(name)}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rule),
+    body: rule,
   })
-  if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
-  }
-  return res.json()
 }
 
 export async function previewAlert(matchers: AlertMatchers): Promise<AlertPreviewResult> {
-  const res = await fetch('/api/v1/alerts/preview', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ matchers }),
-  })
-  if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
-  }
-  return res.json()
+  return request('/api/v1/alerts/preview', { method: 'POST', body: { matchers } })
 }
 
 export async function testAlertDraft(
   rule: AlertRuleInput,
 ): Promise<import('./types').AlertTestResponse> {
-  const res = await fetch('/api/v1/alerts/test', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rule),
-  })
-  if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
-  }
-  return res.json()
+  return request('/api/v1/alerts/test', { method: 'POST', body: rule })
 }
 
 export async function deleteAlert(name: string): Promise<void> {
@@ -353,13 +290,11 @@ export async function deleteAlert(name: string): Promise<void> {
     method: 'DELETE',
   })
   if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
+    return redirectToLogin<void>()
   }
+  // 204 has no JSON body, so this cannot go through request().
   if (!res.ok && res.status !== 204) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
+    throw await errorFrom(res)
   }
 }
 
@@ -383,9 +318,7 @@ export interface RegisteredCluster {
 export async function getRegisteredClusters(): Promise<RegisteredCluster[]> {
   const res = await fetch('/api/v1/hub/clusters')
   if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
+    return redirectToLogin<RegisteredCluster[]>()
   }
   if (!res.ok) {
     // Hub mode may be inactive (412) or the API may have failed. Treat as empty list.
@@ -407,21 +340,11 @@ export interface RegisterClusterRequest {
 export async function registerCluster(
   req: RegisterClusterRequest,
 ): Promise<RegisteredCluster> {
-  const res = await fetch('/api/v1/hub/clusters', {
+  return request('/api/v1/hub/clusters', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(req),
+    body: req,
+    errorMessage: 'Registration failed',
   })
-  if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  const body = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(body.error || `Registration failed (${res.status})`)
-  }
-  return body as RegisteredCluster
 }
 
 export async function deleteRegisteredCluster(name: string): Promise<boolean> {
@@ -454,16 +377,9 @@ export async function getRegistrationManifests(
   if (params.hubNamespace) qs.set('hub_namespace', params.hubNamespace)
   if (params.clusterName) qs.set('cluster_name', params.clusterName)
   const suffix = qs.toString() ? `?${qs.toString()}` : ''
-  const res = await fetch(`/api/v1/hub/manifests${suffix}`)
-  if (res.status === 401) {
-    const returnTo = encodeURIComponent(window.location.pathname)
-    window.location.href = `/auth/login?return_to=${returnTo}`
-    return new Promise(() => {})
-  }
-  if (!res.ok) {
-    throw new Error(`Failed to fetch manifests: ${res.status}`)
-  }
-  return res.json()
+  return request(`/api/v1/hub/manifests${suffix}`, {
+    errorMessage: 'Failed to fetch manifests',
+  })
 }
 
 export async function updateNotes(

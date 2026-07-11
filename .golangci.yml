@@ -1,21 +1,26 @@
+version: "2"
+
 run:
-  timeout: 5m
   build-tags:
     - e2e
 
 linters:
+  # errcheck, govet, ineffassign, staticcheck, unused are enabled by default in v2.
+  enable:
+    - misspell
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        # Close error on a read-only *sql.Rows carries no signal; rows.Err() is checked instead.
+        - (*database/sql.Rows).Close
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
   enable:
     - gofmt
     - goimports
-    - govet
-    - ineffassign
-    - misspell
-    - unconvert
-    - unused
-    - staticcheck
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck

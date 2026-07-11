@@ -1,6 +1,7 @@
 {{- if .Values.rbac.create }}
 # Cluster-wide read-only access to Trivy CRDs on the Hub's own cluster
-# (used by the local watcher). No write, no wildcards.
+# (used by the scraper's local watcher). No write, no wildcards. The server
+# never reads CRDs (it reads SQLite), so only the scraper is bound.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -24,36 +25,74 @@ roleRef:
   name: {{ include "trivy-viewer.fullname" . }}-reader
 subjects:
   - kind: ServiceAccount
-    name: {{ include "trivy-viewer.serviceAccountName" . }}
+    name: {{ include "trivy-viewer.scraperServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 ---
-# Namespaced access for cluster-registration Secret CRUD (blast radius limited
-# to the release namespace).
+# Registration-Secret access, split per component and namespaced to the hub
+# secret namespace to limit blast radius.
+#
+# resourceNames is deliberately NOT used: registration Secret names are
+# dynamic (one per registered edge cluster) and Kubernetes cannot enforce
+# resourceNames on list/watch at all. Any Secret in this namespace is
+# therefore readable by these accounts — deploy the release into a dedicated
+# namespace (or point hubSecretNamespace at one) to keep unrelated Secrets
+# out of scope.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{ include "trivy-viewer.fullname" . }}-secrets
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "trivy-viewer.fullname" . }}-secrets-write
+  namespace: {{ include "trivy-viewer.hubSecretNamespace" . }}
   labels:
     {{- include "trivy-viewer.labels" . | nindent 4 }}
 rules:
+  # Server: registration API creates, updates, and deletes cluster Secrets.
+  # No watch (only the scraper's informer watches) and no patch (unused).
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "create", "update", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: {{ include "trivy-viewer.fullname" . }}-secrets
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "trivy-viewer.fullname" . }}-secrets-write
+  namespace: {{ include "trivy-viewer.hubSecretNamespace" . }}
   labels:
     {{- include "trivy-viewer.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{ include "trivy-viewer.fullname" . }}-secrets
+  name: {{ include "trivy-viewer.fullname" . }}-secrets-write
 subjects:
   - kind: ServiceAccount
-    name: {{ include "trivy-viewer.serviceAccountName" . }}
+    name: {{ include "trivy-viewer.serverServiceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-secrets-read
+  namespace: {{ include "trivy-viewer.hubSecretNamespace" . }}
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+rules:
+  # Scraper: the Secret informer only needs to read; it never writes Secrets.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "trivy-viewer.fullname" . }}-secrets-read
+  namespace: {{ include "trivy-viewer.hubSecretNamespace" . }}
+  labels:
+    {{- include "trivy-viewer.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "trivy-viewer.fullname" . }}-secrets-read
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "trivy-viewer.scraperServiceAccountName" . }}
     namespace: {{ .Release.Namespace }}
 {{- end }}

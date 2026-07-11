@@ -4,6 +4,7 @@ import Header from './Header'
 import { getStats, getClusters, getNamespaces, getVersion } from '../api'
 import { usePolling } from '../hooks/usePolling'
 import type { Stats, ClusterInfo, VersionResponse } from '../types'
+import { logError } from '../utils'
 
 export default function Layout() {
   const [stats, setStats] = useState<Stats | null>(null)
@@ -27,19 +28,19 @@ export default function Layout() {
 
   // Load version once
   useEffect(() => {
-    getVersion().then(setVersion).catch(() => {})
+    getVersion().then(setVersion).catch(logError('load version'))
   }, [])
 
   // Load clusters once
   useEffect(() => {
-    getClusters().then((data) => setClusterOptions(data.items || [])).catch(() => {})
+    getClusters().then((data) => setClusterOptions(data.items || [])).catch(logError('load clusters'))
   }, [])
 
   // Load namespaces when cluster filter changes
   useEffect(() => {
     getNamespaces(filterCluster || undefined)
       .then((data) => setNamespaceOptions(data.items || []))
-      .catch(() => {})
+      .catch(logError('load namespaces'))
   }, [filterCluster])
 
   // Keyboard shortcut: Escape

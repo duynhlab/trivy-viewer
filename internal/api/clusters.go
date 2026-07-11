@@ -213,7 +213,7 @@ func validateName(name string) error {
 		return fmt.Errorf("name must be 1-63 characters")
 	}
 	for _, c := range name {
-		if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
 			return fmt.Errorf("name may only contain lowercase letters, digits, and hyphens")
 		}
 	}
