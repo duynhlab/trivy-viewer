@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/duynhlab/trivy-viewer/internal/model"
@@ -69,5 +70,36 @@ func modelAPILog(method, path string, status, ms int) model.APILogEntry {
 	return model.APILogEntry{
 		Method: method, Path: path, StatusCode: status, DurationMS: ms,
 		CreatedAt: "2026-07-09T12:00:00Z",
+	}
+}
+
+func TestAPILogWhereCombinations(t *testing.T) {
+	cases := []struct {
+		name      string
+		f         model.APILogFilters
+		wantSQL   string
+		wantArgsN int
+	}{
+		{"no filters", model.APILogFilters{}, "", 0},
+		{"method upcased", model.APILogFilters{Method: "get"}, " WHERE method = ?", 1},
+		{"path substring", model.APILogFilters{Path: "/stats"}, " WHERE path LIKE ?", 1},
+		{"status range", model.APILogFilters{StatusMin: 400, StatusMax: 599}, " WHERE status_code >= ? AND status_code <= ?", 2},
+		{"user matches email or sub", model.APILogFilters{User: "alice"}, " WHERE (user_email LIKE ? OR user_sub LIKE ?)", 2},
+		{"all combined", model.APILogFilters{Method: "POST", Path: "/hub", StatusMin: 200, StatusMax: 299, User: "bob"},
+			" WHERE method = ? AND path LIKE ? AND status_code >= ? AND status_code <= ? AND (user_email LIKE ? OR user_sub LIKE ?)", 6},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sql, args := apiLogWhere(tc.f)
+			if sql != tc.wantSQL {
+				t.Errorf("sql = %q, want %q", sql, tc.wantSQL)
+			}
+			if len(args) != tc.wantArgsN {
+				t.Errorf("args = %d, want %d", len(args), tc.wantArgsN)
+			}
+			if tc.f.Method != "" && args[0] != strings.ToUpper(tc.f.Method) {
+				t.Errorf("method arg = %v, want upper-cased", args[0])
+			}
+		})
 	}
 }
