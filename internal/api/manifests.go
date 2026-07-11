@@ -57,6 +57,9 @@ func extractCommands(namespace string) string {
 SA_TOKEN=$(kubectl -n %[1]s get secret trivy-viewer-reader-token -o jsonpath='{.data.token}' | base64 -d)
 CA_DATA=$(kubectl -n %[1]s get secret trivy-viewer-reader-token -o jsonpath='{.data.ca\.crt}')
 API_SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+# Kind/local only: the kubeconfig URL is your host loopback, which the hub
+# cannot reach. Use the edge node IP instead, e.g.:
+#   API_SERVER="https://$(docker inspect <edge>-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):6443"
 echo "server:      $API_SERVER"
 echo "bearerToken: $SA_TOKEN"
 echo "caData:      $CA_DATA"

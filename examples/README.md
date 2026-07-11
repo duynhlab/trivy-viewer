@@ -17,30 +17,47 @@ kind create cluster --name hub --config examples/kind/cluster-hub.yaml
 kind create cluster --name edge --config examples/kind/cluster-edge.yaml
 ```
 
-The edge API is exposed on `127.0.0.1:6444` so the hub scraper can reach it via the host (see [Kind networking](../README.md#kind-networking) in the root README).
+> **Note:** `kind create cluster` switches your current kubectl context to the
+> cluster it just created — after these two commands you are on `kind-edge`.
+> Every command below therefore passes an explicit context.
+
+The edge config exposes the API on host port `127.0.0.1:6444` — that is for
+`kubectl` **from your workstation** only. The hub scraper pod cannot reach
+your host loopback; it connects to the edge node's Docker-network IP instead
+(step 5).
 
 ## 2. Hub — CRDs and trivy-viewer
+
+Installs the released chart from GHCR (image `ghcr.io/duynhlab/trivy-viewer`
+comes from the chart's `appVersion` — no local build needed):
 
 ```bash
 kubectl --context kind-hub apply -f examples/kind/trivy-crds.yaml
 
-helm install trivy-viewer charts/trivy-viewer \
+helm install trivy-viewer oci://ghcr.io/duynhlab/charts/trivy-viewer \
+  --kube-context kind-hub \
   --namespace trivy-system --create-namespace
+```
 
+In a **second terminal** (port-forward blocks):
+
+```bash
 kubectl --context kind-hub -n trivy-system port-forward svc/trivy-viewer-server 3000:3000
 ```
 
 Open http://localhost:3000
 
+> Installing from a checkout instead? Replace the chart reference with the
+> local path: `helm install trivy-viewer charts/trivy-viewer --kube-context kind-hub ...`
+
 ## 3. Edge — Trivy Operator
 
 ```bash
-kubectl config use-context kind-edge
-
 helm repo add aqua https://aquasecurity.github.io/helm-charts/
 helm repo update
 
 helm upgrade --install trivy-operator aqua/trivy-operator \
+  --kube-context kind-edge \
   --namespace trivy-system --create-namespace \
   --version 0.33.2 \
   -f examples/trivy-operator/values-edge.yaml
@@ -69,7 +86,34 @@ kubectl --context kind-edge get vulnerabilityreports -A
 
 ## 5. Register the edge on the hub
 
-Follow **[Register edge clusters via Admin UI](../README.md#register-edge-clusters-via-admin-ui)** (`Admin → Clusters` wizard).
+Extract the credentials. For Kind, the API server URL the **hub scraper**
+uses is the edge node's Docker-network IP — not `127.0.0.1:6444`:
+
+```bash
+EDGE_IP=$(docker inspect edge-control-plane \
+  --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+SERVER="https://$EDGE_IP:6443"
+
+TOKEN=$(kubectl --context kind-edge -n trivy-system \
+  get secret trivy-viewer-reader-token -o jsonpath='{.data.token}' | base64 -d)
+CA=$(kubectl --context kind-edge -n trivy-system \
+  get secret trivy-viewer-reader-token -o jsonpath='{.data.ca\.crt}')
+
+echo "server: $SERVER"
+```
+
+Then register in **Admin → Clusters** (`/admin/clusters`) with `SERVER`,
+`CA`, and `TOKEN` — leave **Skip TLS verify** off; the Kind API certificate
+includes the node IP, so the CA verifies. Full wizard walkthrough:
+**[Register edge clusters via Admin UI](../README.md#register-edge-clusters-via-admin-ui)**.
+
+Or register via API:
+
+```bash
+curl -sS -X POST http://localhost:3000/api/v1/hub/clusters \
+  -H 'Content-Type: application/json' \
+  -d "{\"name\":\"edge-1\",\"server\":\"$SERVER\",\"ca_data\":\"$CA\",\"bearer_token\":\"$TOKEN\"}"
+```
 
 ## 6. Verify
 
@@ -111,4 +155,7 @@ examples/
 
 ## Second edge cluster
 
-Copy `kind/cluster-edge.yaml` with `name: edge-2` and `apiServerPort: 6445`, create the cluster, repeat steps 3–5 with a new name in the Admin UI wizard.
+Copy `kind/cluster-edge.yaml` with `apiServerPort: 6445`, then
+`kind create cluster --name edge-2 --config <copy>.yaml` (the `--name` flag
+overrides the config's `name:` field). Repeat steps 3–5 with the new
+context `kind-edge-2` and node `edge-2-control-plane`.

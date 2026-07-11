@@ -80,9 +80,12 @@ Install on the **hub** cluster:
 ```bash
 kubectl apply -f examples/kind/trivy-crds.yaml
 
-helm install trivy-viewer charts/trivy-viewer \
+helm install trivy-viewer oci://ghcr.io/duynhlab/charts/trivy-viewer \
   --namespace trivy-system --create-namespace
 ```
+
+Installing from a source checkout instead: use the local path
+`charts/trivy-viewer` as the chart reference.
 
 Expose the UI (port-forward, Ingress, or LoadBalancer):
 
@@ -127,6 +130,11 @@ CA=$(kubectl --context "$EDGE_CTX" -n "$EDGE_NS" \
 SERVER=$(kubectl --context "$EDGE_CTX" config view --minify \
   -o jsonpath='{.clusters[0].cluster.server}')
 
+# Kind only: the kubeconfig URL points at your host loopback, which the hub
+# scraper pod cannot reach. Use the edge node's Docker-network IP instead:
+# SERVER="https://$(docker inspect edge-control-plane \
+#   --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'):6443"
+
 echo "server:  $SERVER"
 echo "ca:      $CA"
 echo "token:   $TOKEN"
@@ -141,16 +149,27 @@ Click **Next: Register →** in the wizard.
 
 | Field | Source | Kind tip |
 |-------|--------|----------|
-| API server URL | `SERVER` from step 1-b | e.g. `https://127.0.0.1:6444` when the edge API is exposed on a host port |
+| API server URL | `SERVER` from step 1-b | Use the edge node's Docker-network IP, e.g. `https://172.18.0.3:6443` (see [Kind networking](#kind-networking)) — **not** `https://127.0.0.1:6444` |
 | CA certificate | `CA` (base64) | Paste the full base64 string |
 | Bearer token | `TOKEN` | Read-only SA token |
-| Skip TLS verify | checkbox | Enable for Kind/local if the hub pod cannot validate the edge API certificate |
+| Skip TLS verify | checkbox | Usually unnecessary for Kind — the API certificate includes the node IP, so the CA verifies |
 
 Click **Register cluster**. The hub creates a Secret labelled `trivy-viewer.io/secret-type=cluster`. The scraper attaches within seconds; **Registered Clusters** shows **Synced** once reports are in the database (typically 30–90s after CRs exist on the edge).
 
 ### Kind networking
 
-The hub scraper pod must reach the edge Kubernetes API URL. With [multi-cluster Kind](examples/README.md), expose the edge API on a host port (`examples/kind/cluster-edge.yaml` uses `6444`) and register that URL. From inside the hub cluster, use the Docker bridge IP of the edge control-plane node or `host.docker.internal:<port>` if reachable.
+The hub scraper pod must reach the edge Kubernetes API URL. Both Kind nodes
+sit on the same Docker network, so register the edge node's container IP:
+
+```bash
+EDGE_IP=$(docker inspect edge-control-plane \
+  --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+# register: https://$EDGE_IP:6443
+```
+
+The host port from `examples/kind/cluster-edge.yaml` (`127.0.0.1:6444`) is
+only for `kubectl` from your workstation — pods on the hub cannot reach your
+host loopback.
 
 ### API alternative
 
