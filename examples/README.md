@@ -71,6 +71,32 @@ bash examples/trivy-operator/install-edge.sh
 
 Chart version is pinned in `install-edge.sh` (override with `TRIVY_OPERATOR_CHART_VERSION`). Official docs: https://aquasecurity.github.io/trivy-operator/latest/getting-started/installation/helm/
 
+### Optional — scan the hub cluster too
+
+By default only registered edges show data. To also see the hub's own
+workloads (they appear as cluster **`local`** — the chart's
+`scraper.clusterName`), install the operator on the hub as well.
+
+The operator ships the full report CRDs and refuses to overwrite the minimal
+ones applied in step 2, so replace them first:
+
+```bash
+kubectl --context kind-hub delete crd \
+  vulnerabilityreports.aquasecurity.github.io \
+  sbomreports.aquasecurity.github.io
+
+KUBE_CONTEXT=kind-hub bash examples/trivy-operator/install-edge.sh
+
+# The local watcher lost its CRD watch when the CRDs were deleted — restart:
+kubectl --context kind-hub -n trivy-system rollout restart deploy/trivy-viewer-scraper
+
+kubectl --context kind-hub apply -f examples/kind/demo-workload.yaml
+```
+
+The scraper's local watcher (`scraper.watchLocal`, on by default) picks the
+reports up as the operator creates them — no registration needed. Stored
+reports are unaffected (they live in SQLite, not in the CRDs).
+
 ## 4. Edge — reader RBAC and demo workload
 
 ```bash

@@ -68,9 +68,7 @@ export interface VersionResponse {
   version: string
   commit: string
   build_date: string
-  rust_version: string
-  rust_channel: string
-  llvm_version: string
+  go_version: string
   platform: string
 }
 

@@ -123,7 +123,7 @@ func TestStatsAggregates(t *testing.T) {
 	}
 	_ = repo.UpsertReport(ctx, sbom)
 
-	s, err := repo.Stats(ctx)
+	s, err := repo.Stats(ctx, "")
 	if err != nil {
 		t.Fatalf("stats: %v", err)
 	}
@@ -141,6 +141,24 @@ func TestStatsAggregates(t *testing.T) {
 	}
 	if s.TotalHigh != 4 {
 		t.Errorf("TotalHigh = %d, want 4", s.TotalHigh)
+	}
+
+	// Filtered by cluster: only hub's report counts.
+	s, err = repo.Stats(ctx, "hub")
+	if err != nil {
+		t.Fatalf("stats hub: %v", err)
+	}
+	if s.TotalClusters != 1 || s.TotalVulnReports != 1 || s.TotalSbomReports != 1 {
+		t.Errorf("hub stats = %+v, want clusters=1 vuln=1 sbom=1", s)
+	}
+	if s.TotalCritical != 2 || s.TotalHigh != 3 {
+		t.Errorf("hub severities = crit %d high %d, want 2/3", s.TotalCritical, s.TotalHigh)
+	}
+
+	// Unknown cluster: all zeros, no error.
+	s, err = repo.Stats(ctx, "nope")
+	if err != nil || s.TotalVulnReports != 0 || s.TotalClusters != 0 {
+		t.Errorf("unknown cluster stats = %+v err=%v, want zeros", s, err)
 	}
 }
 
