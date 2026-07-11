@@ -58,16 +58,12 @@ export default function VersionView() {
           {version ? (
             <>
               <div className="detail-summary-item">
-                <span className="detail-summary-label">Rust</span>
+                <span className="detail-summary-label">Go</span>
                 <span className="detail-summary-value">
-                  <a href="https://github.com/rust-lang/rust/releases" target="_blank" rel="noopener noreferrer">
-                    {version.rust_version}
-                  </a> ({version.rust_channel})
+                  <a href="https://go.dev/doc/devel/release" target="_blank" rel="noopener noreferrer">
+                    {version.go_version}
+                  </a>
                 </span>
-              </div>
-              <div className="detail-summary-item">
-                <span className="detail-summary-label">LLVM</span>
-                <span className="detail-summary-value">{version.llvm_version}</span>
               </div>
               <div className="detail-summary-item">
                 <span className="detail-summary-label">Platform</span>

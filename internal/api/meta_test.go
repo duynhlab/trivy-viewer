@@ -1,8 +1,12 @@
 package api
 
 import (
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/duynhlab/trivy-viewer/internal/model"
 )
 
 func TestHumanBytes(t *testing.T) {
@@ -54,5 +58,40 @@ func TestClientIP(t *testing.T) {
 				t.Errorf("clientIP = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestTrendsClusterFilter(t *testing.T) {
+	srv, repo := newTestServer(t)
+	seedReport(t, repo, model.Report{
+		Cluster: "hub", Namespace: "a", Name: "r1", ReportType: model.ReportTypeVuln,
+		Critical: 5, Data: `{}`,
+	})
+	seedReport(t, repo, model.Report{
+		Cluster: "edge", Namespace: "a", Name: "r2", ReportType: model.ReportTypeVuln,
+		Critical: 2, Data: `{}`,
+	})
+
+	var resp struct {
+		Series []struct {
+			Critical      int64 `json:"critical"`
+			VulnReports   int64 `json:"vuln_reports"`
+			ClustersCount int64 `json:"clusters_count"`
+		} `json:"series"`
+	}
+
+	rec := do(t, srv, http.MethodGet, "/api/v1/dashboard/trends?range=1d&cluster=hub")
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil || len(resp.Series) != 1 {
+		t.Fatalf("decode: err=%v body=%s", err, rec.Body.String())
+	}
+	if resp.Series[0].Critical != 5 || resp.Series[0].VulnReports != 1 || resp.Series[0].ClustersCount != 1 {
+		t.Errorf("filtered series = %+v, want hub-only (critical 5, 1 report, 1 cluster)", resp.Series[0])
+	}
+
+	rec = do(t, srv, http.MethodGet, "/api/v1/dashboard/trends?range=1d")
+	resp.Series = nil
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if len(resp.Series) != 1 || resp.Series[0].Critical != 7 || resp.Series[0].ClustersCount != 2 {
+		t.Errorf("unfiltered series = %+v, want totals (critical 7, 2 clusters)", resp.Series)
 	}
 }

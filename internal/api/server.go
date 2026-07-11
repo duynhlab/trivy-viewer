@@ -25,7 +25,7 @@ type ReportStore interface {
 	UpdateNotes(ctx context.Context, cluster, reportType, namespace, name, notes string) error
 	ListClusters(ctx context.Context) ([]model.ClusterInfo, error)
 	ListNamespaces(ctx context.Context, cluster string) ([]string, error)
-	Stats(ctx context.Context) (model.Stats, error)
+	Stats(ctx context.Context, cluster string) (model.Stats, error)
 	CountByType(ctx context.Context, reportType string) (int64, error)
 	SearchVulnerabilities(ctx context.Context, q string, limit, offset int) ([]model.VulnSearchResult, int64, error)
 	SuggestVulnerabilityIDs(ctx context.Context, q string, limit int) ([]string, error)

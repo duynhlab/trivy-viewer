@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.reports.Stats(r.Context())
+	stats, err := s.reports.Stats(r.Context(), "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -53,9 +53,10 @@ func (s *Server) listNamespaces(w http.ResponseWriter, r *http.Request) {
 
 // getTrends returns a minimal trend payload. Historical trends are a v2 item;
 // for v1 we return the current snapshot as a single data point so the dashboard
-// renders without error.
+// renders without error. The cluster query parameter narrows the snapshot so
+// the dashboard's cluster filter works.
 func (s *Server) getTrends(w http.ResponseWriter, r *http.Request) {
-	stats, err := s.reports.Stats(r.Context())
+	stats, err := s.reports.Stats(r.Context(), r.URL.Query().Get("cluster"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -112,13 +113,11 @@ func (s *Server) watcherStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getVersion(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"version":      buildinfo.Version,
-		"commit":       buildinfo.Commit,
-		"build_date":   buildinfo.BuildDate,
-		"rust_version": "",
-		"rust_channel": "go",
-		"llvm_version": "",
-		"platform":     runtime.GOOS + "/" + runtime.GOARCH,
+		"version":    buildinfo.Version,
+		"commit":     buildinfo.Commit,
+		"build_date": buildinfo.BuildDate,
+		"go_version": runtime.Version(),
+		"platform":   runtime.GOOS + "/" + runtime.GOARCH,
 	})
 }
 

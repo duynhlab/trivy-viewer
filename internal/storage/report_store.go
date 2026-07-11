@@ -199,20 +199,22 @@ func (r *ReportStore) ListNamespaces(ctx context.Context, cluster string) ([]str
 	return out, rows.Err()
 }
 
-// Stats returns the dashboard aggregate.
-func (r *ReportStore) Stats(ctx context.Context) (model.Stats, error) {
+// Stats returns the dashboard aggregate. A non-empty cluster narrows every
+// aggregate to that cluster; empty means all clusters.
+func (r *ReportStore) Stats(ctx context.Context, cluster string) (model.Stats, error) {
 	var s model.Stats
 	err := r.db.QueryRowContext(ctx, `
 		SELECT
-			(SELECT COUNT(DISTINCT cluster) FROM reports),
-			(SELECT COUNT(*) FROM reports WHERE report_type = 'vulnerabilityreport'),
-			(SELECT COUNT(*) FROM reports WHERE report_type = 'sbomreport'),
+			(SELECT COUNT(DISTINCT cluster) FROM reports WHERE (?1 = '' OR cluster = ?1)),
+			(SELECT COUNT(*) FROM reports WHERE report_type = 'vulnerabilityreport' AND (?1 = '' OR cluster = ?1)),
+			(SELECT COUNT(*) FROM reports WHERE report_type = 'sbomreport' AND (?1 = '' OR cluster = ?1)),
 			COALESCE(SUM(critical_count), 0),
 			COALESCE(SUM(high_count), 0),
 			COALESCE(SUM(medium_count), 0),
 			COALESCE(SUM(low_count), 0),
 			COALESCE(SUM(unknown_count), 0)
-		FROM reports WHERE report_type = 'vulnerabilityreport'`,
+		FROM reports WHERE report_type = 'vulnerabilityreport' AND (?1 = '' OR cluster = ?1)`,
+		cluster,
 	).Scan(
 		&s.TotalClusters, &s.TotalVulnReports, &s.TotalSbomReports,
 		&s.TotalCritical, &s.TotalHigh, &s.TotalMedium, &s.TotalLow, &s.TotalUnknown,
