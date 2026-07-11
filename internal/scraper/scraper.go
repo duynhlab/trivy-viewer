@@ -40,23 +40,21 @@ func Run(ctx context.Context, cfg *config.Config, repo *storage.Repository, m *m
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(workerCount)
-	for i := 0; i < workerCount; i++ {
-		go func() {
-			defer wg.Done()
+	for range workerCount {
+		wg.Go(func() {
 			worker(ctx, events, repo, m)
-		}()
+		})
 	}
 
 	// Local watcher for the Hub's own cluster.
 	if cfg.WatchLocal {
 		lw := watcher.New(dyn, cfg.ClusterName, cfg.Namespaces, handler)
 		lw.OnEvent = metricEvent(m)
-		go func() {
+		wg.Go(func() {
 			if err := lw.Run(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("local watcher stopped", "error", err)
 			}
-		}()
+		})
 		slog.Info("local watcher enabled", "cluster", cfg.ClusterName)
 	}
 
@@ -81,9 +79,15 @@ func Run(ctx context.Context, cfg *config.Config, repo *storage.Repository, m *m
 	onReady()
 	slog.Info("scraper ready", "hub_namespace", namespace, "watch_local", cfg.WatchLocal)
 
+	// Shutdown ordering (see docs/08-concurrency.md): ctx cancel stops the
+	// manager (which cancels every per-cluster watcher), then we wait for the
+	// local watcher and the workers to drain. The events channel is never
+	// closed: informer callbacks stop asynchronously after cancellation and a
+	// straggler could otherwise send on a closed channel and panic. Events
+	// still buffered at this point are dropped by design — informers are
+	// level-triggered, so the next start repopulates them via the initial list.
 	<-ctx.Done()
 	err = <-mgrDone
-	close(events)
 	wg.Wait()
 	return err
 }
