@@ -27,6 +27,10 @@ type ReportStore interface {
 	ListNamespaces(ctx context.Context, cluster string) ([]string, error)
 	Stats(ctx context.Context) (model.Stats, error)
 	CountByType(ctx context.Context, reportType string) (int64, error)
+	SearchVulnerabilities(ctx context.Context, q string, limit, offset int) ([]model.VulnSearchResult, int64, error)
+	SuggestVulnerabilityIDs(ctx context.Context, q string, limit int) ([]string, error)
+	SearchComponents(ctx context.Context, q string, limit, offset int) ([]model.ComponentSearchResult, int64, error)
+	SuggestComponents(ctx context.Context, q string, limit int) ([]string, error)
 }
 
 // AuditLogStore is the audit-log surface consumed by the admin handlers and
