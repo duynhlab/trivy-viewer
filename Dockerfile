@@ -15,7 +15,7 @@ RUN mkdir -p /app/internal/web/static && npm run build
 # Cross-compile on the builder's native platform instead of emulating the
 # target via QEMU (the emulated arm64 leg took ~18 min vs ~2 min native).
 # CGO is disabled, so GOOS/GOARCH is all Go needs.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 WORKDIR /app
 RUN apk add --no-cache git
 COPY go.mod go.sum ./
